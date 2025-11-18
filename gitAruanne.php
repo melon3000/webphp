@@ -25,7 +25,7 @@ echo "</li>";
         git status
         git add .
         git commit -a -m "{text}"
-        
+        git push
     </pre>
 </li>
 <?php
