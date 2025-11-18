@@ -1,10 +1,10 @@
 header {
-    background-color: #f1f1f1;
+    background-color: cornflowerblue;
     text-align: center;
     padding: 10px;
 }
+
 footer {
-    position: fixed;
     bottom: 0;
     left: 0;
     width: 100%;
@@ -17,8 +17,11 @@ nav ul {
     list-style-type: none;
     margin: 0;
     padding: 0;
-    width: 200px;
+    width: 130px;
     background-color: #f1f1f1;
+    height: 100%; /* Full height */
+    position: fixed; /* Make it stick, even on scroll */
+    overflow: auto; /* Enable scrolling if the sidenav has too much content */
 }
 
 nav li a {
@@ -32,4 +35,28 @@ nav li a {
 nav li a:hover {
     background-color: #555555;
     color: white;
+}
+
+div.flex-container{
+    display: flex;
+    flex-direction: row;
+    margin-left: 10%;
+}
+
+div.flex-container > div{
+    margin: 10px;
+    flex: 1;
+    border: solid 1pt black;
+    border-radius: 6px;
+    padding: 10px;
+}
+
+@media screen and (max-width: 600px){
+    div.flex-container{
+        flex-direction: column;
+    }
+}
+
+img {
+    width: 200px;
 }
