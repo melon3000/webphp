@@ -9,14 +9,12 @@ echo "</li>";
     <pre>
         git config --global user.name "melon3000"
         git config --global user.email "milan.petrovski8@gmail.com"
-        git config --global --list
-    </pre>
+        git config --global --list</pre>
 </li>
 <li>
     Ssh võti loomine
     <pre>
-        ssh-keygen -o -t rsa -C "milan.petrovski8@gmail.com"
-    </pre>
+        ssh-keygen -o -t rsa -C "milan.petrovski8@gmail.com"</pre>
     id_rsa.pub võti kopeeritakse githubi nägu deploy key
 </li>
 <li>
@@ -25,8 +23,7 @@ echo "</li>";
         git status
         git add .
         git commit -a -m "{text}"
-        git push
-    </pre>
+        git push</pre>
 </li>
 
 <?php

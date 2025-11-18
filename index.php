@@ -1,7 +1,28 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <title>Milan PHP tööd</title>
+    <link rel="stylesheet" href="style/style.css">
+</head>
+<body>
 <?php
-    echo "<h1>";
-    echo "PHP!";
-    echo "</h1>";
-    $text="Tarid";
-    echo $text;
+//päis
+include("header.php");
 ?>
+<?php
+//navigeerimismenüü
+include("nav.php");
+?>
+<main>
+    <section>
+
+    </section>
+</main>
+<?php
+//jalus
+include("footer.php");
+?>
+
+</body>
+</html>
