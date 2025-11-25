@@ -49,3 +49,51 @@ $nimi .= $perenimi;
 echo $nimi."<br>";
 $format = "Tere, %s %s, arv x: %d";
 printf($format, $perenimi, $nimi, $x);
+
+echo"<br><br>";
+
+// Saladuslikud numbrid
+$number1 = 7;
+$number2 = 15;
+
+echo "Esimene number on vahemikus 1-10<br>";
+echo "Teine number on vahemikus 10-20<br>";
+echo "Esimene number on paaritu<br>";
+echo "Teine number jagub 3-ga<br>";
+echo "Numbrite summa on: ".($number1 + $number2)."<br>";
+echo "Numbrite korrutis on: ".($number1 * $number2)."<br>";
+
+function clearVarsExcept($url, $varname)
+{
+    $url = basename($url);
+    if (str_starts_with($url, "?")) {
+        return "?$varname=$_REQUEST[$varname]";
+    }
+    return strtok($url, "?") . "?$varname=" . $_REQUEST[$varname];
+}
+?>
+
+<form name="numbrikontroll" action="<?=clearVarsExcept($_SERVER['REQUEST_URI'], "link")?>" method="post">
+    <label for="number1">Sisesta esimene number (1-10):</label>
+    <input type="number" name="number1" id="number1" min="1" max="10" required><br><br>
+    <label for="number2">Sisesta teine number (10-20):</label>
+    <input type="number" name="number2" id="number2" min="10" max="20" required><br><br>
+    <input type="submit" value="Kontrolli" id="kontroll">
+</form>
+
+<?php
+if(isset($_REQUEST['number1']) && isset($_REQUEST['number2'])){
+    $guess1 = (int)$_REQUEST['number1'];
+    $guess2 = (int)$_REQUEST['number2'];
+
+    if($guess1 == $number1 && $guess2 == $number2){
+        echo "<strong>Õige! Mõlemad numbrid on õiged: ".$guess1." ja ".$guess2."</strong>";
+    } elseif($guess1 == 7){
+        echo "Esimene number ".$guess1." on õige, aga teine on vale!";
+    } elseif($guess2 == 15){
+        echo "Teine number ".$guess2." on õige, aga esimene on vale!";
+    } else {
+        echo "Mõlemad numbrid on valed! Proovi uuesti.";
+    }
+}
+?>
