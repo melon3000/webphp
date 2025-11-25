@@ -63,44 +63,16 @@ img {
 }
 
 .flex-container-ajaf {
-    display: flex;
-    flex-wrap: wrap;          /* разрешаем перенос на следующую строку */
-    gap: 25px;                /* расстояние между блоками */
-    margin-left: 130px;       /* сдвигаем контейнер вправо, чтобы не заходить под nav */
-    padding: 15px 0;
-    box-sizing: border-box;
+    display: flex;          /* Включаем flex-контейнер */
+    flex-direction: row;    /* Горизонтальное расположение элементов */
+    gap: 20px;              /* Расстояние между блоками */
+    flex-wrap: wrap;        /* Если блоков слишком много, они перенесутся на следующую строку */
 }
 
-/* Фиксированная ширина и высота для карточек */
 .flex-row {
-    flex: 0 0 calc((100% - 4 * 25px) / 5); /* 5 карточек в ряд с учётом gap 25px между ними */
-    height: 200px;                          /* фиксированная высота */
-    background: #ffffff;
-    border: 2px solid #333;
-    border-radius: 16px;
-    padding: 20px;
-    box-shadow: 0 3px 6px rgba(0,0,0,0.1);
-
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-
-    font-size: 18px;
-    line-height: 1.4;
-    box-sizing: border-box;
-}
-
-/* Адаптация на мобильных: 1 карточка в строку */
-@media screen and (max-width: 900px) {
-    .flex-row {
-        flex: 0 0 calc((100% - 2 * 25px) / 3); /* 3 карточки в ряд */
-        height: 180px;
-    }
-}
-
-@media screen and (max-width: 600px) {
-    .flex-row {
-        flex: 0 0 100%;   /* одна карточка в строку */
-        height: auto;     /* высота под контент */
-    }
+    border: 1px solid #ccc; /* Для наглядности границы блоков */
+    padding: 10px;
+    background-color: #f9f9f9;
+    min-width: 200px;       /* Минимальная ширина блока */
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
 }

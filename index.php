@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Milan PHP tööd</title>
     <link rel="stylesheet" href="style/style.css">
-<!--    <link rel="stylesheet" href="style/Kusitlus.css">-->
+    <link rel="stylesheet" href="style/Kusitlus.css">
     <script src="js/Kusitlus.js"></script>
     <script src="js/kellscript.js"></script>
 </head>
