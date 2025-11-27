@@ -13,7 +13,7 @@
     <?php
     if (isset($_GET['id'])) {
         $id = (int)$_GET['id'];
-        $file = "anekdood{$id}.txt";
+        $file = "anekdoot   {$id}.txt";
 
         if (file_exists($file)) {
             echo '<h2>Anekdoot ' . $id . '</h2>';
