@@ -1,0 +1,42 @@
+/* Общий стиль для всех страниц */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+header, footer {
+    background-color: #4CAF50;
+    color: white;
+    text-align: center;
+    padding: 15px 0;
+}
+
+nav {
+    background-color: #333;
+    text-align: center;
+}
+
+nav a {
+    display: inline-block;
+    color: white;
+    text-decoration: none;
+    padding: 10px 15px;
+}
+
+nav a:hover {
+    background-color: #575757;
+}
+
+main {
+    padding: 20px;
+}
+
+/* Адаптивный дизайн */
+@media (max-width: 600px) {
+    nav a {
+        display: block;
+        text-align: center;
+    }
+}

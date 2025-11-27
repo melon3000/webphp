@@ -1,78 +1,225 @@
-header {
-    background-color: cornflowerblue;
-    text-align: center;
-    padding: 10px;
-}
-
-footer {
-    position: relative ;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    background-color: #f1f1f1;
-    padding: 8px;
-    text-align: center;
-    z-index: 1000;
-}
-nav ul {
-    list-style-type: none;
+/* Общие стили */
+* {
     margin: 0;
     padding: 0;
-    width: 130px;
-    background-color: #f1f1f1;
-    height: 100%; /* Full height */
-    position: fixed; /* Make it stick, even on scroll */
-    overflow: auto; /* Enable scrolling if the sidenav has too much content */
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f8fafc;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Хедер */
+header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    text-align: center;
+    padding: 2rem 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+header h1 {
+    font-size: 2.5rem;
+    font-weight: 300;
+    margin-bottom: 0.5rem;
+}
+
+header p {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+/* Навигация */
+nav {
+    background: white;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+nav ul {
+    list-style-type: none;
+    display: flex;
+    justify-content: center;
+    padding: 1rem;
+    gap: 2rem;
 }
 
 nav li a {
-    display: block;
-    color: black;
-    padding: 8px 16px;
+    color: #4a5568;
     text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 25px;
+    transition: all 0.3s ease;
+    font-weight: 500;
 }
 
-/* Change the link and background color on hover */
 nav li a:hover {
-    background-color: #555555;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
+    transform: translateY(-2px);
 }
 
-div.flex-container{
-    display: flex;
-    flex-direction: row;
-    margin-left: 10%;
-}
-
-div.flex-container > div{
-    margin: 10px;
+/* Основной контент */
+main {
     flex: 1;
-    border: solid 1pt black;
-    border-radius: 6px;
-    padding: 10px;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
 }
 
-@media screen and (max-width: 600px){
-    div.flex-container{
-        flex-direction: column;
-    }
+/* Флекс-контейнеры */
+.flex-container {
+    display: flex;
+    gap: 2rem;
+    margin: 2rem 0;
 }
 
-img {
-    width: 200px;
+.flex-container > div {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e2e8f0;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.flex-container > div:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
 }
 
 .flex-container-ajaf {
-    display: flex;          /* Включаем flex-контейнер */
-    flex-direction: row;    /* Горизонтальное расположение элементов */
-    gap: 20px;              /* Расстояние между блоками */
-    flex-wrap: wrap;        /* Если блоков слишком много, они перенесутся на следующую строку */
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin: 2rem 0;
 }
 
 .flex-row {
-    border: 1px solid #ccc; /* Для наглядности границы блоков */
-    padding: 10px;
-    background-color: #f9f9f9;
-    min-width: 200px;       /* Минимальная ширина блока */
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    background: white;
+    padding: 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e2e8f0;
+    flex: 1;
+    min-width: 250px;
+    transition: all 0.3s ease;
+}
+
+.flex-row:hover {
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* Изображения */
+img {
+    width: 100%;
+    max-width: 300px;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Футер */
+footer {
+    background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+    color: white;
+    text-align: center;
+    padding: 2rem 1rem;
+    margin-top: auto;
+    width: 100%;
+}
+
+footer p {
+    margin-bottom: 0.5rem;
+}
+
+/* Адаптивность */
+@media screen and (max-width: 768px) {
+    nav ul {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .flex-container {
+        flex-direction: column;
+    }
+
+    .flex-container-ajaf {
+        flex-direction: column;
+    }
+
+    header h1 {
+        font-size: 2rem;
+    }
+
+    main {
+        padding: 1rem;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    nav ul {
+        gap: 0.25rem;
+    }
+
+    nav li a {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.9rem;
+    }
+
+    .flex-container > div,
+    .flex-row {
+        padding: 1rem;
+    }
+}
+
+/* Дополнительные современные элементы */
+.card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1.5rem;
+}
+
+.btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.flex-container > div,
+.flex-row {
+    animation: fadeIn 0.6s ease-out;
 }
