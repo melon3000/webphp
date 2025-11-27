@@ -1,0 +1,2514 @@
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\config
+=======
+[TEXT]
+[core]
+	repositoryformatversion = 0
+	filemode = false
+	bare = false
+	logallrefupdates = true
+	symlinks = false
+	ignorecase = true
+[remote "origin"]
+	url = git@github.com:melon3000/webphp.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\description
+=======
+[TEXT]
+Unnamed repository; edit this file 'description' to name the repository.
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\HEAD
+=======
+[TEXT]
+ref: refs/heads/Mobillimail
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\applypatch-msg.sample
+=======
+[TEXT]
+#!/bin/sh
+#
+# An example hook script to check the commit log message taken by
+# applypatch from an e-mail message.
+#
+# The hook should exit with non-zero status after issuing an
+# appropriate message if it wants to stop the commit.  The hook is
+# allowed to edit the commit message file.
+#
+# To enable this hook, rename this file to "applypatch-msg".
+
+. git-sh-setup
+commitmsg="$(git rev-parse --git-path hooks/commit-msg)"
+test -x "$commitmsg" && exec "$commitmsg" ${1+"$@"}
+:
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\commit-msg.sample
+=======
+[TEXT]
+#!/bin/sh
+#
+# An example hook script to check the commit log message.
+# Called by "git commit" with one argument, the name of the file
+# that has the commit message.  The hook should exit with non-zero
+# status after issuing an appropriate message if it wants to stop the
+# commit.  The hook is allowed to edit the commit message file.
+#
+# To enable this hook, rename this file to "commit-msg".
+
+# Uncomment the below to add a Signed-off-by line to the message.
+# Doing this in a hook is a bad idea in general, but the prepare-commit-msg
+# hook is more suited to it.
+#
+# SOB=$(git var GIT_AUTHOR_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
+# grep -qs "^$SOB" "$1" || echo "$SOB" >> "$1"
+
+# This example catches duplicate Signed-off-by lines.
+
+test "" = "$(grep '^Signed-off-by: ' "$1" |
+	 sort | uniq -c | sed -e '/^[ 	]*1[ 	]/d')" || {
+	echo >&2 Duplicate Signed-off-by lines.
+	exit 1
+}
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\fsmonitor-watchman.sample
+=======
+[TEXT]
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use IPC::Open2;
+
+# An example hook script to integrate Watchman
+# (https://facebook.github.io/watchman/) with git to speed up detecting
+# new and modified files.
+#
+# The hook is passed a version (currently 2) and last update token
+# formatted as a string and outputs to stdout a new update token and
+# all files that have been modified since the update token. Paths must
+# be relative to the root of the working tree and separated by a single NUL.
+#
+# To enable this hook, rename this file to "query-watchman" and set
+# 'git config core.fsmonitor .git/hooks/query-watchman'
+#
+my ($version, $last_update_token) = @ARGV;
+
+# Uncomment for debugging
+# print STDERR "$0 $version $last_update_token\n";
+
+# Check the hook interface version
+if ($version ne 2) {
+	die "Unsupported query-fsmonitor hook version '$version'.\n" .
+	    "Falling back to scanning...\n";
+}
+
+my $git_work_tree = get_working_dir();
+
+my $retry = 1;
+
+my $json_pkg;
+eval {
+	require JSON::XS;
+	$json_pkg = "JSON::XS";
+	1;
+} or do {
+	require JSON::PP;
+	$json_pkg = "JSON::PP";
+};
+
+launch_watchman();
+
+sub launch_watchman {
+	my $o = watchman_query();
+	if (is_work_tree_watched($o)) {
+		output_result($o->{clock}, @{$o->{files}});
+	}
+}
+
+sub output_result {
+	my ($clockid, @files) = @_;
+
+	# Uncomment for debugging watchman output
+	# open (my $fh, ">", ".git/watchman-output.out");
+	# binmode $fh, ":utf8";
+	# print $fh "$clockid\n@files\n";
+	# close $fh;
+
+	binmode STDOUT, ":utf8";
+	print $clockid;
+	print "\0";
+	local $, = "\0";
+	print @files;
+}
+
+sub watchman_clock {
+	my $response = qx/watchman clock "$git_work_tree"/;
+	die "Failed to get clock id on '$git_work_tree'.\n" .
+		"Falling back to scanning...\n" if $? != 0;
+
+	return $json_pkg->new->utf8->decode($response);
+}
+
+sub watchman_query {
+	my $pid = open2(\*CHLD_OUT, \*CHLD_IN, 'watchman -j --no-pretty')
+	or die "open2() failed: $!\n" .
+	"Falling back to scanning...\n";
+
+	# In the query expression below we're asking for names of files that
+	# changed since $last_update_token but not from the .git folder.
+	#
+	# To accomplish this, we're using the "since" generator to use the
+	# recency index to select candidate nodes and "fields" to limit the
+	# output to file names only. Then we're using the "expression" term to
+	# further constrain the results.
+	my $last_update_line = "";
+	if (substr($last_update_token, 0, 1) eq "c") {
+		$last_update_token = "\"$last_update_token\"";
+		$last_update_line = qq[\n"since": $last_update_token,];
+	}
+	my $query = <<"	END";
+		["query", "$git_work_tree", {$last_update_line
+			"fields": ["name"],
+			"expression": ["not", ["dirname", ".git"]]
+		}]
+	END
+
+	# Uncomment for debugging the watchman query
+	# open (my $fh, ">", ".git/watchman-query.json");
+	# print $fh $query;
+	# close $fh;
+
+	print CHLD_IN $query;
+	close CHLD_IN;
+	my $response = do {local $/; <CHLD_OUT>};
+
+	# Uncomment for debugging the watch response
+	# open ($fh, ">", ".git/watchman-response.json");
+	# print $fh $response;
+	# close $fh;
+
+	die "Watchman: command returned no output.\n" .
+	"Falling back to scanning...\n" if $response eq "";
+	die "Watchman: command returned invalid output: $response\n" .
+	"Falling back to scanning...\n" unless $response =~ /^\{/;
+
+	return $json_pkg->new->utf8->decode($response);
+}
+
+sub is_work_tree_watched {
+	my ($output) = @_;
+	my $error = $output->{error};
+	if ($retry > 0 and $error and $error =~ m/unable to resolve root .* directory (.*) is not watched/) {
+		$retry--;
+		my $response = qx/watchman watch "$git_work_tree"/;
+		die "Failed to make watchman watch '$git_work_tree'.\n" .
+		    "Falling back to scanning...\n" if $? != 0;
+		$output = $json_pkg->new->utf8->decode($response);
+		$error = $output->{error};
+		die "Watchman: $error.\n" .
+		"Falling back to scanning...\n" if $error;
+
+		# Uncomment for debugging watchman output
+		# open (my $fh, ">", ".git/watchman-output.out");
+		# close $fh;
+
+		# Watchman will always return all files on the first query so
+		# return the fast "everything is dirty" flag to git and do the
+		# Watchman query just to get it over with now so we won't pay
+		# the cost in git to look up each individual file.
+		my $o = watchman_clock();
+		$error = $output->{error};
+
+		die "Watchman: $error.\n" .
+		"Falling back to scanning...\n" if $error;
+
+		output_result($o->{clock}, ("/"));
+		$last_update_token = $o->{clock};
+
+		eval { launch_watchman() };
+		return 0;
+	}
+
+	die "Watchman: $error.\n" .
+	"Falling back to scanning...\n" if $error;
+
+	return 1;
+}
+
+sub get_working_dir {
+	my $working_dir;
+	if ($^O =~ 'msys' || $^O =~ 'cygwin') {
+		$working_dir = Win32::GetCwd();
+		$working_dir =~ tr/\\/\//;
+	} else {
+		require Cwd;
+		$working_dir = Cwd::cwd();
+	}
+
+	return $working_dir;
+}
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\post-update.sample
+=======
+[TEXT]
+#!/bin/sh
+#
+# An example hook script to prepare a packed repository for use over
+# dumb transports.
+#
+# To enable this hook, rename this file to "post-update".
+
+exec git update-server-info
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\pre-applypatch.sample
+=======
+[TEXT]
+#!/bin/sh
+#
+# An example hook script to verify what is about to be committed
+# by applypatch from an e-mail message.
+#
+# The hook should exit with non-zero status after issuing an
+# appropriate message if it wants to stop the commit.
+#
+# To enable this hook, rename this file to "pre-applypatch".
+
+. git-sh-setup
+precommit="$(git rev-parse --git-path hooks/pre-commit)"
+test -x "$precommit" && exec "$precommit" ${1+"$@"}
+:
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\pre-commit.sample
+=======
+[TEXT]
+#!/bin/sh
+#
+# An example hook script to verify what is about to be committed.
+# Called by "git commit" with no arguments.  The hook should
+# exit with non-zero status after issuing an appropriate message if
+# it wants to stop the commit.
+#
+# To enable this hook, rename this file to "pre-commit".
+
+if git rev-parse --verify HEAD >/dev/null 2>&1
+then
+	against=HEAD
+else
+	# Initial commit: diff against an empty tree object
+	against=$(git hash-object -t tree /dev/null)
+fi
+
+# If you want to allow non-ASCII filenames set this variable to true.
+allownonascii=$(git config --type=bool hooks.allownonascii)
+
+# Redirect output to stderr.
+exec 1>&2
+
+# Cross platform projects tend to avoid non-ASCII filenames; prevent
+# them from being added to the repository. We exploit the fact that the
+# printable range starts at the space character and ends with tilde.
+if [ "$allownonascii" != "true" ] &&
+	# Note that the use of brackets around a tr range is ok here, (it's
+	# even required, for portability to Solaris 10's /usr/bin/tr), since
+	# the square bracket bytes happen to fall in the designated range.
+	test $(git diff-index --cached --name-only --diff-filter=A -z $against |
+	  LC_ALL=C tr -d '[ -~]\0' | wc -c) != 0
+then
+	cat <<\EOF
+Error: Attempt to add a non-ASCII file name.
+
+This can cause problems if you want to work with people on other platforms.
+
+To be portable it is advisable to rename the file.
+
+If you know what you are doing you can disable this check using:
+
+  git config hooks.allownonascii true
+EOF
+	exit 1
+fi
+
+# If there are whitespace errors, print the offending file names and fail.
+exec git diff-index --check --cached $against --
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\pre-merge-commit.sample
+=======
+[TEXT]
+#!/bin/sh
+#
+# An example hook script to verify what is about to be committed.
+# Called by "git merge" with no arguments.  The hook should
+# exit with non-zero status after issuing an appropriate message to
+# stderr if it wants to stop the merge commit.
+#
+# To enable this hook, rename this file to "pre-merge-commit".
+
+. git-sh-setup
+test -x "$GIT_DIR/hooks/pre-commit" &&
+        exec "$GIT_DIR/hooks/pre-commit"
+:
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\pre-push.sample
+=======
+[TEXT]
+#!/bin/sh
+
+# An example hook script to verify what is about to be pushed.  Called by "git
+# push" after it has checked the remote status, but before anything has been
+# pushed.  If this script exits with a non-zero status nothing will be pushed.
+#
+# This hook is called with the following parameters:
+#
+# $1 -- Name of the remote to which the push is being done
+# $2 -- URL to which the push is being done
+#
+# If pushing without using a named remote those arguments will be equal.
+#
+# Information about the commits which are being pushed is supplied as lines to
+# the standard input in the form:
+#
+#   <local ref> <local oid> <remote ref> <remote oid>
+#
+# This sample shows how to prevent push of commits where the log message starts
+# with "WIP" (work in progress).
+
+remote="$1"
+url="$2"
+
+zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
+
+while read local_ref local_oid remote_ref remote_oid
+do
+	if test "$local_oid" = "$zero"
+	then
+		# Handle delete
+		:
+	else
+		if test "$remote_oid" = "$zero"
+		then
+			# New branch, examine all commits
+			range="$local_oid"
+		else
+			# Update to existing branch, examine new commits
+			range="$remote_oid..$local_oid"
+		fi
+
+		# Check for WIP commit
+		commit=$(git rev-list -n 1 --grep '^WIP' "$range")
+		if test -n "$commit"
+		then
+			echo >&2 "Found WIP commit in $local_ref, not pushing"
+			exit 1
+		fi
+	fi
+done
+
+exit 0
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\pre-rebase.sample
+=======
+[TEXT]
+#!/bin/sh
+#
+# Copyright (c) 2006, 2008 Junio C Hamano
+#
+# The "pre-rebase" hook is run just before "git rebase" starts doing
+# its job, and can prevent the command from running by exiting with
+# non-zero status.
+#
+# The hook is called with the following parameters:
+#
+# $1 -- the upstream the series was forked from.
+# $2 -- the branch being rebased (or empty when rebasing the current branch).
+#
+# This sample shows how to prevent topic branches that are already
+# merged to 'next' branch from getting rebased, because allowing it
+# would result in rebasing already published history.
+
+publish=next
+basebranch="$1"
+if test "$#" = 2
+then
+	topic="refs/heads/$2"
+else
+	topic=`git symbolic-ref HEAD` ||
+	exit 0 ;# we do not interrupt rebasing detached HEAD
+fi
+
+case "$topic" in
+refs/heads/??/*)
+	;;
+*)
+	exit 0 ;# we do not interrupt others.
+	;;
+esac
+
+# Now we are dealing with a topic branch being rebased
+# on top of master.  Is it OK to rebase it?
+
+# Does the topic really exist?
+git show-ref -q "$topic" || {
+	echo >&2 "No such branch $topic"
+	exit 1
+}
+
+# Is topic fully merged to master?
+not_in_master=`git rev-list --pretty=oneline ^master "$topic"`
+if test -z "$not_in_master"
+then
+	echo >&2 "$topic is fully merged to master; better remove it."
+	exit 1 ;# we could allow it, but there is no point.
+fi
+
+# Is topic ever merged to next?  If so you should not be rebasing it.
+only_next_1=`git rev-list ^master "^$topic" ${publish} | sort`
+only_next_2=`git rev-list ^master           ${publish} | sort`
+if test "$only_next_1" = "$only_next_2"
+then
+	not_in_topic=`git rev-list "^$topic" master`
+	if test -z "$not_in_topic"
+	then
+		echo >&2 "$topic is already up to date with master"
+		exit 1 ;# we could allow it, but there is no point.
+	else
+		exit 0
+	fi
+else
+	not_in_next=`git rev-list --pretty=oneline ^${publish} "$topic"`
+	/usr/bin/perl -e '
+		my $topic = $ARGV[0];
+		my $msg = "* $topic has commits already merged to public branch:\n";
+		my (%not_in_next) = map {
+			/^([0-9a-f]+) /;
+			($1 => 1);
+		} split(/\n/, $ARGV[1]);
+		for my $elem (map {
+				/^([0-9a-f]+) (.*)$/;
+				[$1 => $2];
+			} split(/\n/, $ARGV[2])) {
+			if (!exists $not_in_next{$elem->[0]}) {
+				if ($msg) {
+					print STDERR $msg;
+					undef $msg;
+				}
+				print STDERR " $elem->[1]\n";
+			}
+		}
+	' "$topic" "$not_in_next" "$not_in_master"
+	exit 1
+fi
+
+<<\DOC_END
+
+This sample hook safeguards topic branches that have been
+published from being rewound.
+
+The workflow assumed here is:
+
+ * Once a topic branch forks from "master", "master" is never
+   merged into it again (either directly or indirectly).
+
+ * Once a topic branch is fully cooked and merged into "master",
+   it is deleted.  If you need to build on top of it to correct
+   earlier mistakes, a new topic branch is created by forking at
+   the tip of the "master".  This is not strictly necessary, but
+   it makes it easier to keep your history simple.
+
+ * Whenever you need to test or publish your changes to topic
+   branches, merge them into "next" branch.
+
+The script, being an example, hardcodes the publish branch name
+to be "next", but it is trivial to make it configurable via
+$GIT_DIR/config mechanism.
+
+With this workflow, you would want to know:
+
+(1) ... if a topic branch has ever been merged to "next".  Young
+    topic branches can have stupid mistakes you would rather
+    clean up before publishing, and things that have not been
+    merged into other branches can be easily rebased without
+    affecting other people.  But once it is published, you would
+    not want to rewind it.
+
+(2) ... if a topic branch has been fully merged to "master".
+    Then you can delete it.  More importantly, you should not
+    build on top of it -- other people may already want to
+    change things related to the topic as patches against your
+    "master", so if you need further changes, it is better to
+    fork the topic (perhaps with the same name) afresh from the
+    tip of "master".
+
+Let's look at this example:
+
+		   o---o---o---o---o---o---o---o---o---o "next"
+		  /       /           /           /
+		 /   a---a---b A     /           /
+		/   /               /           /
+	       /   /   c---c---c---c B         /
+	      /   /   /             \         /
+	     /   /   /   b---b C     \       /
+	    /   /   /   /             \     /
+    ---o---o---o---o---o---o---o---o---o---o---o "master"
+
+
+A, B and C are topic branches.
+
+ * A has one fix since it was merged up to "next".
+
+ * B has finished.  It has been fully merged up to "master" and "next",
+   and is ready to be deleted.
+
+ * C has not merged to "next" at all.
+
+We would want to allow C to be rebased, refuse A, and encourage
+B to be deleted.
+
+To compute (1):
+
+	git rev-list ^master ^topic next
+	git rev-list ^master        next
+
+	if these match, topic has not merged in next at all.
+
+To compute (2):
+
+	git rev-list master..topic
+
+	if this is empty, it is fully merged to "master".
+
+DOC_END
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\pre-receive.sample
+=======
+[TEXT]
+#!/bin/sh
+#
+# An example hook script to make use of push options.
+# The example simply echoes all push options that start with 'echoback='
+# and rejects all pushes when the "reject" push option is used.
+#
+# To enable this hook, rename this file to "pre-receive".
+
+if test -n "$GIT_PUSH_OPTION_COUNT"
+then
+	i=0
+	while test "$i" -lt "$GIT_PUSH_OPTION_COUNT"
+	do
+		eval "value=\$GIT_PUSH_OPTION_$i"
+		case "$value" in
+		echoback=*)
+			echo "echo from the pre-receive-hook: ${value#*=}" >&2
+			;;
+		reject)
+			exit 1
+		esac
+		i=$((i + 1))
+	done
+fi
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\prepare-commit-msg.sample
+=======
+[TEXT]
+#!/bin/sh
+#
+# An example hook script to prepare the commit log message.
+# Called by "git commit" with the name of the file that has the
+# commit message, followed by the description of the commit
+# message's source.  The hook's purpose is to edit the commit
+# message file.  If the hook fails with a non-zero status,
+# the commit is aborted.
+#
+# To enable this hook, rename this file to "prepare-commit-msg".
+
+# This hook includes three examples. The first one removes the
+# "# Please enter the commit message..." help message.
+#
+# The second includes the output of "git diff --name-status -r"
+# into the message, just before the "git status" output.  It is
+# commented because it doesn't cope with --amend or with squashed
+# commits.
+#
+# The third example adds a Signed-off-by line to the message, that can
+# still be edited.  This is rarely a good idea.
+
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+SHA1=$3
+
+/usr/bin/perl -i.bak -ne 'print unless(m/^. Please enter the commit message/..m/^#$/)' "$COMMIT_MSG_FILE"
+
+# case "$COMMIT_SOURCE,$SHA1" in
+#  ,|template,)
+#    /usr/bin/perl -i.bak -pe '
+#       print "\n" . `git diff --cached --name-status -r`
+# 	 if /^#/ && $first++ == 0' "$COMMIT_MSG_FILE" ;;
+#  *) ;;
+# esac
+
+# SOB=$(git var GIT_COMMITTER_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
+# git interpret-trailers --in-place --trailer "$SOB" "$COMMIT_MSG_FILE"
+# if test -z "$COMMIT_SOURCE"
+# then
+#   /usr/bin/perl -i.bak -pe 'print "\n" if !$first_line++' "$COMMIT_MSG_FILE"
+# fi
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\push-to-checkout.sample
+=======
+[TEXT]
+#!/bin/sh
+
+# An example hook script to update a checked-out tree on a git push.
+#
+# This hook is invoked by git-receive-pack(1) when it reacts to git
+# push and updates reference(s) in its repository, and when the push
+# tries to update the branch that is currently checked out and the
+# receive.denyCurrentBranch configuration variable is set to
+# updateInstead.
+#
+# By default, such a push is refused if the working tree and the index
+# of the remote repository has any difference from the currently
+# checked out commit; when both the working tree and the index match
+# the current commit, they are updated to match the newly pushed tip
+# of the branch. This hook is to be used to override the default
+# behaviour; however the code below reimplements the default behaviour
+# as a starting point for convenient modification.
+#
+# The hook receives the commit with which the tip of the current
+# branch is going to be updated:
+commit=$1
+
+# It can exit with a non-zero status to refuse the push (when it does
+# so, it must not modify the index or the working tree).
+die () {
+	echo >&2 "$*"
+	exit 1
+}
+
+# Or it can make any necessary changes to the working tree and to the
+# index to bring them to the desired state when the tip of the current
+# branch is updated to the new commit, and exit with a zero status.
+#
+# For example, the hook can simply run git read-tree -u -m HEAD "$1"
+# in order to emulate git fetch that is run in the reverse direction
+# with git push, as the two-tree form of git read-tree -u -m is
+# essentially the same as git switch or git checkout that switches
+# branches while keeping the local changes in the working tree that do
+# not interfere with the difference between the branches.
+
+# The below is a more-or-less exact translation to shell of the C code
+# for the default behaviour for git's push-to-checkout hook defined in
+# the push_to_deploy() function in builtin/receive-pack.c.
+#
+# Note that the hook will be executed from the repository directory,
+# not from the working tree, so if you want to perform operations on
+# the working tree, you will have to adapt your code accordingly, e.g.
+# by adding "cd .." or using relative paths.
+
+if ! git update-index -q --ignore-submodules --refresh
+then
+	die "Up-to-date check failed"
+fi
+
+if ! git diff-files --quiet --ignore-submodules --
+then
+	die "Working directory has unstaged changes"
+fi
+
+# This is a rough translation of:
+#
+#   head_has_history() ? "HEAD" : EMPTY_TREE_SHA1_HEX
+if git cat-file -e HEAD 2>/dev/null
+then
+	head=HEAD
+else
+	head=$(git hash-object -t tree --stdin </dev/null)
+fi
+
+if ! git diff-index --quiet --cached --ignore-submodules $head --
+then
+	die "Working directory has staged changes"
+fi
+
+if ! git read-tree -u -m "$commit"
+then
+	die "Could not update working tree to new HEAD"
+fi
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\sendemail-validate.sample
+=======
+[TEXT]
+#!/bin/sh
+
+# An example hook script to validate a patch (and/or patch series) before
+# sending it via email.
+#
+# The hook should exit with non-zero status after issuing an appropriate
+# message if it wants to prevent the email(s) from being sent.
+#
+# To enable this hook, rename this file to "sendemail-validate".
+#
+# By default, it will only check that the patch(es) can be applied on top of
+# the default upstream branch without conflicts in a secondary worktree. After
+# validation (successful or not) of the last patch of a series, the worktree
+# will be deleted.
+#
+# The following config variables can be set to change the default remote and
+# remote ref that are used to apply the patches against:
+#
+#   sendemail.validateRemote (default: origin)
+#   sendemail.validateRemoteRef (default: HEAD)
+#
+# Replace the TODO placeholders with appropriate checks according to your
+# needs.
+
+validate_cover_letter () {
+	file="$1"
+	# TODO: Replace with appropriate checks (e.g. spell checking).
+	true
+}
+
+validate_patch () {
+	file="$1"
+	# Ensure that the patch applies without conflicts.
+	git am -3 "$file" || return
+	# TODO: Replace with appropriate checks for this patch
+	# (e.g. checkpatch.pl).
+	true
+}
+
+validate_series () {
+	# TODO: Replace with appropriate checks for the whole series
+	# (e.g. quick build, coding style checks, etc.).
+	true
+}
+
+# main -------------------------------------------------------------------------
+
+if test "$GIT_SENDEMAIL_FILE_COUNTER" = 1
+then
+	remote=$(git config --default origin --get sendemail.validateRemote) &&
+	ref=$(git config --default HEAD --get sendemail.validateRemoteRef) &&
+	worktree=$(mktemp --tmpdir -d sendemail-validate.XXXXXXX) &&
+	git worktree add -fd --checkout "$worktree" "refs/remotes/$remote/$ref" &&
+	git config --replace-all sendemail.validateWorktree "$worktree"
+else
+	worktree=$(git config --get sendemail.validateWorktree)
+fi || {
+	echo "sendemail-validate: error: failed to prepare worktree" >&2
+	exit 1
+}
+
+unset GIT_DIR GIT_WORK_TREE
+cd "$worktree" &&
+
+if grep -q "^diff --git " "$1"
+then
+	validate_patch "$1"
+else
+	validate_cover_letter "$1"
+fi &&
+
+if test "$GIT_SENDEMAIL_FILE_COUNTER" = "$GIT_SENDEMAIL_FILE_TOTAL"
+then
+	git config --unset-all sendemail.validateWorktree &&
+	trap 'git worktree remove -ff "$worktree"' EXIT &&
+	validate_series
+fi
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\hooks\update.sample
+=======
+[TEXT]
+#!/bin/sh
+#
+# An example hook script to block unannotated tags from entering.
+# Called by "git receive-pack" with arguments: refname sha1-old sha1-new
+#
+# To enable this hook, rename this file to "update".
+#
+# Config
+# ------
+# hooks.allowunannotated
+#   This boolean sets whether unannotated tags will be allowed into the
+#   repository.  By default they won't be.
+# hooks.allowdeletetag
+#   This boolean sets whether deleting tags will be allowed in the
+#   repository.  By default they won't be.
+# hooks.allowmodifytag
+#   This boolean sets whether a tag may be modified after creation. By default
+#   it won't be.
+# hooks.allowdeletebranch
+#   This boolean sets whether deleting branches will be allowed in the
+#   repository.  By default they won't be.
+# hooks.denycreatebranch
+#   This boolean sets whether remotely creating branches will be denied
+#   in the repository.  By default this is allowed.
+#
+
+# --- Command line
+refname="$1"
+oldrev="$2"
+newrev="$3"
+
+# --- Safety check
+if [ -z "$GIT_DIR" ]; then
+	echo "Don't run this script from the command line." >&2
+	echo " (if you want, you could supply GIT_DIR then run" >&2
+	echo "  $0 <ref> <oldrev> <newrev>)" >&2
+	exit 1
+fi
+
+if [ -z "$refname" -o -z "$oldrev" -o -z "$newrev" ]; then
+	echo "usage: $0 <ref> <oldrev> <newrev>" >&2
+	exit 1
+fi
+
+# --- Config
+allowunannotated=$(git config --type=bool hooks.allowunannotated)
+allowdeletebranch=$(git config --type=bool hooks.allowdeletebranch)
+denycreatebranch=$(git config --type=bool hooks.denycreatebranch)
+allowdeletetag=$(git config --type=bool hooks.allowdeletetag)
+allowmodifytag=$(git config --type=bool hooks.allowmodifytag)
+
+# check for no description
+projectdesc=$(sed -e '1q' "$GIT_DIR/description")
+case "$projectdesc" in
+"Unnamed repository"* | "")
+	echo "*** Project description file hasn't been set" >&2
+	exit 1
+	;;
+esac
+
+# --- Check types
+# if $newrev is 0000...0000, it's a commit to delete a ref.
+zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
+if [ "$newrev" = "$zero" ]; then
+	newrev_type=delete
+else
+	newrev_type=$(git cat-file -t $newrev)
+fi
+
+case "$refname","$newrev_type" in
+	refs/tags/*,commit)
+		# un-annotated tag
+		short_refname=${refname##refs/tags/}
+		if [ "$allowunannotated" != "true" ]; then
+			echo "*** The un-annotated tag, $short_refname, is not allowed in this repository" >&2
+			echo "*** Use 'git tag [ -a | -s ]' for tags you want to propagate." >&2
+			exit 1
+		fi
+		;;
+	refs/tags/*,delete)
+		# delete tag
+		if [ "$allowdeletetag" != "true" ]; then
+			echo "*** Deleting a tag is not allowed in this repository" >&2
+			exit 1
+		fi
+		;;
+	refs/tags/*,tag)
+		# annotated tag
+		if [ "$allowmodifytag" != "true" ] && git rev-parse $refname > /dev/null 2>&1
+		then
+			echo "*** Tag '$refname' already exists." >&2
+			echo "*** Modifying a tag is not allowed in this repository." >&2
+			exit 1
+		fi
+		;;
+	refs/heads/*,commit)
+		# branch
+		if [ "$oldrev" = "$zero" -a "$denycreatebranch" = "true" ]; then
+			echo "*** Creating a branch is not allowed in this repository" >&2
+			exit 1
+		fi
+		;;
+	refs/heads/*,delete)
+		# delete branch
+		if [ "$allowdeletebranch" != "true" ]; then
+			echo "*** Deleting a branch is not allowed in this repository" >&2
+			exit 1
+		fi
+		;;
+	refs/remotes/*,commit)
+		# tracking branch
+		;;
+	refs/remotes/*,delete)
+		# delete tracking branch
+		if [ "$allowdeletebranch" != "true" ]; then
+			echo "*** Deleting a tracking branch is not allowed in this repository" >&2
+			exit 1
+		fi
+		;;
+	*)
+		# Anything else (is there anything else?)
+		echo "*** Update hook: unknown type of update to ref $refname of type $newrev_type" >&2
+		exit 1
+		;;
+esac
+
+# --- Finished
+exit 0
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\index
+=======
+[BINARY_BASE64]
+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
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\info\exclude
+=======
+[TEXT]
+# git ls-files --others --exclude-from=.git/info/exclude
+# Lines that start with '#' are comments.
+# For a project mostly in C, the following would be a good set of
+# exclude patterns (uncomment them if you want to use them):
+# *.[oa]
+# *~
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\logs\HEAD
+=======
+[TEXT]
+0000000000000000000000000000000000000000 d4c1b9150eae65c0825fd953b727c75f9721e90c melon3000 <milan.petrovski8@gmail.com> 1764243910 +0200	clone: from github.com:melon3000/webphp.git
+d4c1b9150eae65c0825fd953b727c75f9721e90c d4c1b9150eae65c0825fd953b727c75f9721e90c melon3000 <milan.petrovski8@gmail.com> 1764243930 +0200	checkout: moving from main to Mobillimail
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\logs\refs\heads\main
+=======
+[TEXT]
+0000000000000000000000000000000000000000 d4c1b9150eae65c0825fd953b727c75f9721e90c melon3000 <milan.petrovski8@gmail.com> 1764243910 +0200	clone: from github.com:melon3000/webphp.git
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\logs\refs\heads\Mobillimail
+=======
+[TEXT]
+0000000000000000000000000000000000000000 d4c1b9150eae65c0825fd953b727c75f9721e90c melon3000 <milan.petrovski8@gmail.com> 1764243919 +0200	branch: Created from main
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\logs\refs\remotes\origin\HEAD
+=======
+[TEXT]
+0000000000000000000000000000000000000000 d4c1b9150eae65c0825fd953b727c75f9721e90c melon3000 <milan.petrovski8@gmail.com> 1764243910 +0200	clone: from github.com:melon3000/webphp.git
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\objects\00\5c4304a04d1cab895548798e7255d4679d291d
+=======
+[BINARY_BASE64]
+eAF1VO1OE1EQ9fc+xbDpj5aUVhPEpBUMTUvSSLABTDTUbLbLxa6U3c3u1kIICRCVHyUaI4mJf4w+QUUbSyntK9x9BZ/Ec2/b7Qe6Sdnl3pkzZ2bOTKlil+je/fkHdx4+csqOoiRnZxWaJf6Vd/k1vwnq/Ir4L97gHd4jfhmc8GbwloI3OLmCQZdfEu8Fx/ho8nZwyhsU5Ze8za+D98EZbwQfiP/gLX6Dz2MJ14xJfLh1gYsbgpfwPcEbcDLiEJ8c137FDF/bru45CX/fT8BZ+n+f8mmGnII68d+g1+MtYNbBpgEup/gGlzYu2oQcEC04F2jEP07yoz/HF8iUMrrHFubjSA+0OnA5Q0gUhFCDHv59B7cG8jyXaXUINiLHNq5EOToCPKkoEde2fVokTcvm1zUtrUTsqu9U/RWzwnDcv06QmpxOVU0rirlD0R0Yamzf9HwvOuYbi9GhQniqVsW0dieu0soRAgtHDyEsVqN1ZlRdz3zN8j5zdd92h++oxJgwyZouSm67B6GNJBkfgdyySKU2HucLWvbJ5kZMiYH4ju0y3ShTdMBC90h+DUmLxOTB3JLpAS4apiNSMmzLN60qS0tyyEUcRhzdL4uKibzmll4yv4ADS99jUUSUFi6r6D6SFBew9HxXc5lT0Q0WHdVZjZOKn4QTVIVnMgnFi7ahyS2hYrS6EypqAK7XgCm7gdia4Mgs0RPB6xYQZCd00ALM1ABgnlqYnNY/dN8PZHoZ09LdAxFNr3ioQsgRupWuwJYCprWnq3PAxzBCz3Up3XB2puNKFFF41MWxQdzVa6hF8a4ao5nFQbBhg2Q9x5j47lQ7RMk+I/BPaF3uAbzb/QRKFdvYJdBXi9Zi/ylah5Hx7hyN3QihD5vwBSg3ciHgb0g4MiQywa4fJoEwW5n82vL6cy2zvJFbmH9RtAApEMUTCc1KcqA1Zhn2thCEXosRBi+0PiKGag+matJV3drMPdv8H7CAmkQaJSRKNLaJhK4kNakjrIExHY32AtQpWcdpJb+a05YLhdxadigxZpRtUvkFgLGTU3SrsEgeI9M3K1r8E1QtNyvvzhD/hsUUCjt1a7/KYvwFNOGM1w==
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\objects\2f\9a281f5295940d548ccd51f1bc902b7375a23c
+=======
+[TEXT]
+xU�1�0E�s��	�Vb�J��p�EiZ��p.FB^,�o=׶���\�`�t'=e�[�|a�Dذ%u�o��,i9����B�5cj7�8�ד��,��E�e�: S��� ��3�����=�G�
+2���ڋ�n����9��?8_nDm���\�7}Ij
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\objects\4b\dcfcb8ddf83909b37899b4a6cd01cf0932ea69
+=======
+[BINARY_BASE64]
+eAFLyslPUjA0MmOwUXTxdw6JDHBVyCjJzbHjsgFRCjmJeem2Sql5SiCB1MQUOy4FBZvc1JJEheSMxKLi1BJbpdAQN10LoDxQoiSzJCfVTiUERKnY6EO4XDb6EJ02SfkplXZcKq5+LipAQQgPKAmyDgCXJif0
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\objects\a7\1c245f79ce495d9146fe0f3e3163448f84d7b4
+=======
+[TEXT]
+x%ȱ1Pj�� ]A��L�S,��a'�B&�b ]��v��v��Z�$k�CkFt��E�l"d���I�T+�v}�ik6��&�zD�p�R,w"+����(����0�
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\objects\ac\72ec1ad4251d128538b21f5d9ba3395821adb2
+=======
+[TEXT]
+x}Sю�0�s���;��=�iR�Dj���t�j���Mpb�$��?��Ɖ��NAB�a<�;^��ڒ����v�}��~\��*I|�|]1��n��*[�__�����Hր6J�dl�@'�r����#c}���]\5{�=��לz��kdG
+qa�N�`|RR����|>�.B�:W��Ѡ0�����KI^i��&��-�;�c4,DhW9��� 1q�,&
+NB�j9����(�?����Qv�qdc�d�/A��6i�.�@	t��Ӭ�Z�@s�!�>���]B����Ek��J�	5�,є��+�L:x��Y9��Uqv�BtD.>�b��X.��T5t�l[�+� �p)�Svq]�4]s)g��٢0♜�$+�����&Y�<��7�b��ާ�D�B���|Z�1J$�.��r������΅;s�jwW2�1݃E`���x��d�o��Z��ƀq������㘅3����d{&.Y��	�1��T���覤R4���{�kǗ��3���9
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\objects\e6\9de29bb2d1d6434b8b29ae775ad8c2e48c5391
+=======
+[BINARY_BASE64]
+eAFLyslPUjBgAAAJsAHw
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\objects\pack\pack-70f6a08ca09e0955eff96c7d3e5c4249c404570d.idx
+=======
+[BINARY_BASE64]
+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
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\objects\pack\pack-70f6a08ca09e0955eff96c7d3e5c4249c404570d.pack
+=======
+[BINARY_BASE64]
+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
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\objects\pack\pack-70f6a08ca09e0955eff96c7d3e5c4249c404570d.rev
+=======
+[BINARY_BASE64]
+UklEWAAAAAEAAAABAAAAHwAAADoAAABMAAAARQAAACsAAAAuAAAAPQAAACkAAAAUAAAAUQAAAAAAAABNAAAADAAAACAAAAA2AAAAPAAAAEEAAABVAAAABQAAABIAAABPAAAAMwAAAD8AAAAtAAAAFgAAACwAAAAvAAAANQAAAEcAAAALAAAAUgAAABMAAAAwAAAAQAAAABoAAAAPAAAAHgAAAE4AAAAdAAAAWAAAABUAAAAGAAAARgAAABwAAABLAAAAVgAAAAoAAABIAAAAEQAAAFAAAAAhAAAACAAAAAkAAAAHAAAAJwAAADQAAABDAAAAVAAAACMAAABEAAAAGwAAADcAAAAxAAAASQAAABgAAAAiAAAAOAAAAAQAAAADAAAAMgAAACUAAABXAAAAKAAAAAIAAAAmAAAAUwAAAAEAAAANAAAAJAAAADsAAABKAAAAFwAAAA4AAAAZAAAAOQAAACoAAABCAAAAEAAAAD4AAABZcPagjKCeCVXv+Wx9PlxCScQEVw3T01FIqB0HNiSY1wxloXtkK0uq9A==
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\packed-refs
+=======
+[TEXT]
+# pack-refs with: peeled fully-peeled sorted 
+5f262df32c4deac12a5cacc8c3f980150dd2d496 refs/remotes/origin/CSVfailid
+d4c1b9150eae65c0825fd953b727c75f9721e90c refs/remotes/origin/main
+b703fd397390034b30b72bd9b64816a28f8e80bf refs/remotes/origin/matemFunktsioonid
+bd010f7a82384a63b0c30900e113f68f249e37e9 refs/remotes/origin/tekstFunktsioonid
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\refs\heads\main
+=======
+[TEXT]
+d4c1b9150eae65c0825fd953b727c75f9721e90c
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\refs\heads\Mobillimail
+=======
+[TEXT]
+d4c1b9150eae65c0825fd953b727c75f9721e90c
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.git\refs\remotes\origin\HEAD
+=======
+[TEXT]
+ref: refs/remotes/origin/main
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.idea\.gitignore
+=======
+[TEXT]
+# Default ignored files
+/shelf/
+/workspace.xml
+# Editor-based HTTP Client requests
+/httpRequests/
+# Datasource local storage ignored files
+/dataSources/
+/dataSources.local.xml
+
+
+=======
+C:\Users\opilane\Desktop\webphp\.idea\aws.xml
+=======
+[TEXT]
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="accountSettings">
+    <option name="activeRegion" value="us-east-1" />
+    <option name="recentlyUsedRegions">
+      <list>
+        <option value="us-east-1" />
+      </list>
+    </option>
+  </component>
+</project>
+
+=======
+C:\Users\opilane\Desktop\webphp\.idea\modules.xml
+=======
+[TEXT]
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/php1tund.iml" filepath="$PROJECT_DIR$/.idea/php1tund.iml" />
+    </modules>
+  </component>
+</project>
+
+=======
+C:\Users\opilane\Desktop\webphp\.idea\php.xml
+=======
+[TEXT]
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="MessDetectorOptionsConfiguration">
+    <option name="transferred" value="true" />
+  </component>
+  <component name="PHPCSFixerOptionsConfiguration">
+    <option name="transferred" value="true" />
+  </component>
+  <component name="PHPCodeSnifferOptionsConfiguration">
+    <option name="highlightLevel" value="WARNING" />
+    <option name="transferred" value="true" />
+  </component>
+  <component name="PhpProjectSharedConfiguration" php_language_level="8.0" />
+  <component name="PhpStanOptionsConfiguration">
+    <option name="transferred" value="true" />
+  </component>
+  <component name="PsalmOptionsConfiguration">
+    <option name="transferred" value="true" />
+  </component>
+</project>
+
+=======
+C:\Users\opilane\Desktop\webphp\.idea\php1tund.iml
+=======
+[TEXT]
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="WEB_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$" />
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
+
+=======
+C:\Users\opilane\Desktop\webphp\.idea\vcs.xml
+=======
+[TEXT]
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="$PROJECT_DIR$" vcs="Git" />
+  </component>
+</project>
+
+=======
+C:\Users\opilane\Desktop\webphp\.idea\workspace.xml
+=======
+[TEXT]
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="94b300a4-90b5-4511-b92d-515b916b4eeb" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/content/Mobillimail/blankett.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/content/Mobillimail/esmaspaev.php" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/content/Mobillimail/jalus.php" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/content/Mobillimail/kolmapaev.php" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/content/Mobillimail/neljapaev.php" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/content/Mobillimail/p2is.php" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/content/Mobillimail/reede.php" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/content/Mobillimail/sisselugemine.php" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/content/Mobillimail/teade.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/content/Mobillimail/teisipaev.php" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/dump.php" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/style/kujundus.css" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ComposerSettings">
+    <execution />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="HTML File" />
+        <option value="CSS File" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="PhpWorkspaceProjectConfiguration" interpreter_name="PHP" />
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 5
+}]]></component>
+  <component name="ProjectId" id="363nATH32bDFcUyXqDnS0bus9r8" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "DefaultHtmlFileTemplate": "HTML File",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "Mobillimail",
+    "last_opened_file_path": "C:/Users/opilane/Desktop/webphp",
+    "list.type.of.created.stylesheet": "CSS",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\opilane\Desktop\webphp" />
+    </key>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-09060db00ec0-JavaScript-PS-251.27812.52" />
+        <option value="bundled-php-predefined-a98d8de5180a-e5747d4f5a45-com.jetbrains.php.sharedIndexes-PS-251.27812.52" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="94b300a4-90b5-4511-b92d-515b916b4eeb" name="Changes" comment="" />
+      <created>1764243979899</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1764243979899</updated>
+      <workItem from="1764243981086" duration="2265000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>
+
+=======
+C:\Users\opilane\Desktop\webphp\content\ajaFunktsioonid.php
+=======
+[TEXT]
+<h3>Ajafunktsioonid</h3>
+
+<div class="flex-container-ajaf">
+
+    <?php
+    // --- БЛОК 1 ---
+    echo "<div class='flex-row'>";
+    date_default_timezone_set('Europe/Tallinn');
+    echo "<a href='https://www.php.net/manual/en/timezones.php'>Timezone list</a><br>";
+    echo "time() - aeg sekundides - " . time() . "<br>";
+    echo "date() - " . date('d.m.Y H:i:s') . "<br>";
+    echo "</div>";
+
+    // --- БЛОК 2 ---
+    echo "<div class='flex-row'>";
+    echo "<pre>
+d - päev 01..31
+m - kuu 1..12
+Y - aasta - 2025++
+G - 24h formaat
+i - minutid 0..59
+s - sekundid 0..59
+</pre>";
+    echo "</div>";
+
+    // --- БЛОК 3 ---
+    echo "<div class='flex-row'>";
+    echo "<h4>Tehted Kuupäevaga</h4>";
+    echo "+1 min = " . date("d.m.Y H:i:s", time() + 60) . "<br>";
+    echo "+1 tund = " . date("d.m.Y H:i:s", time() + 3600) . "<br>";
+    echo "+1 päev = " . date("d.m.Y H:i:s", time() + 86400) . "<br>";
+    echo "</div>";
+
+    // --- БЛОК 4 ---
+    echo "<div class='flex-row'>";
+    echo "<h4>Kuupäeva genereerimine</h4>";
+    $synd = mktime(8, 43, 41, 5, 22, 2008);
+    echo "Minu sünnipäev on: " . date("d.m.Y H:i:s", $synd);
+    echo "</div>";
+
+    // --- БЛОК 5 ---
+    echo "<div class='flex-row'>";
+    echo "Massiivi abil näidata tänase kuu nimega<br>";
+    $kuud = [
+        1 => 'Jaanuar', 'Veebruar', 'Märts', 'April', 'Mai',
+        'Juuni', 'Juuli', 'August', 'September', 'Oktober',
+        'November', 'December'
+    ];
+    $aasta = date("Y");
+    $paev = date("d");
+    $kuu = $kuud[date("n")];
+    echo "Täna on $paev $kuu $aasta";
+    echo "</div>";
+    ?>
+
+</div>
+
+
+=======
+C:\Users\opilane\Desktop\webphp\content\avaleht.php
+=======
+[TEXT]
+<p>
+    <strong>
+        Tere tulemast minu PHP Tööde lehele!
+    </strong>
+
+    Kasuta Navigeerimismenüü, et otsida vajalike tööde!
+</p>
+
+=======
+C:\Users\opilane\Desktop\webphp\content\gitKasutamine.php
+=======
+[TEXT]
+<?php
+echo "<h2>GIT käsud</h2>";
+echo "<ol>";
+echo "<li>Repo loomine";
+echo "<pre>git init</pre>";
+echo "</li>";
+?>
+<li>Konfigureerimine
+    <pre>
+        git config --global user.name "melon3000"
+        git config --global user.email "milan.petrovski8@gmail.com"
+        git config --global --list</pre>
+</li>
+<li>
+    Ssh võti loomine
+    <pre>
+        ssh-keygen -o -t rsa -C "milan.petrovski8@gmail.com"</pre>
+    id_rsa.pub võti kopeeritakse githubi nägu deploy key
+</li>
+<li>
+    Jälgimise lisamine ja commit'i tegemine
+    <pre>
+        git status
+        git add .
+        git commit -a -m "{text}"
+        git push</pre>
+</li>
+
+<?php
+echo "<li>GITHUB projektiga sidumine>";
+echo "<pre>";
+echo "
+git remote add origin git@github.com:melon3000/webphp.git
+git branch -M main
+git push -u origin main
+";
+echo "</pre>";
+echo "</li>";
+
+echo "<li>Projektide kloneerimine desktopi.<br>
+* kontrolli, et id_rsa võti on olemas .ssh kaustas<br>
+* GIT CMD on lahti ja <br>";
+echo"<pre>";
+echo "git clone git@github.com:melon3000/webphp.git";
+echo "</pre>";
+echo "</li>";
+echo "</ol>";
+
+
+=======
+C:\Users\opilane\Desktop\webphp\content\Kusitlus.php
+=======
+[TEXT]
+<h1>Muusika küsitlus</h1>
+<form id="musicaForm">
+    <table id="Tabel1">
+        <tr>
+            <td>
+                <strong>Milliseid ansambleid sa tead? *</strong>
+                <span class="error" id="ansamblidError"></span>
+                <br>
+
+                <input type="checkbox" name="valik" id="abba" value="ABBA" onchange="ansambleid()">
+                <label for="abba">ABBA</label>
+                <br>
+
+                <input type="checkbox" name="valik" id="Moderntalking" value="Modern talking" onchange="ansambleid()">
+                <label for="Moderntalking">Modern Talking</label>
+                <br>
+
+                <input type="checkbox" name="valik" id="Queen" value="Queen" onchange="ansambleid()">
+                <label for="Queen">Queen</label>
+                <br>
+
+                <input type="checkbox" name="valik" id="nirvana" value="Nirvana" onchange="ansambleid()">
+                <label for="nirvana">Nirvana</label>
+                <br>
+            </td>
+            <td>
+                <div id="vastus1"></div>
+            </td>
+        </tr>
+
+        <tr>
+            <td>
+                <strong><label for="arvate">Mida arvad muusika kuulamisest koolis? *</label></strong>
+                <input type="text" id="arvate" name="arvate" oninput="SinuArvade()">
+                <span class="error" id="arvateError"></span>
+            </td>
+            <td>
+                <div id="vastus2"></div>
+            </td>
+        </tr>
+
+        <tr>
+            <td>
+                <strong><label for="slider">Mitu tundi päevas sa kuulad muusikat? *</label></strong>
+                <input type="range" id="slider" name="slider" min="0" max="24" value="0" oninput="sliderLuugub()">
+                <div id="sliderValue">0 tundi</div>
+                <span class="error" id="sliderError"></span>
+                <br><br>
+            </td>
+            <td>
+                <div id="vastus3"></div>
+            </td>
+        </tr>
+
+        <tr>
+            <td>
+                <strong>Kas sa kuulad raadiot? *</strong>
+                <span class="error" id="raadioError"></span>
+                <br>
+                <input type="radio" name="raadio" id="jah" value="Sa kuulad raadio!" onchange="valiRadio()">
+                <label for="jah">Jah</label>
+
+                <input type="radio" name="raadio" id="ei" value="Sa ei kuula raadio!" onchange="valiRadio()">
+                <label for="ei">Ei</label>
+            </td>
+            <td>
+                <div id="vastus4"></div>
+            </td>
+        </tr>
+
+        <tr>
+            <td>
+                <strong><label for="grupp">Milliseid raadiojaamu oskad nimetada? *</label></strong>
+                <input type="text" id="grupp" name="grupp" oninput="kirjutajaamu()">
+                <span class="error" id="gruppError"></span>
+            </td>
+            <td>
+                <div id="vastus5"></div>
+            </td>
+        </tr>
+
+        <tr>
+            <td>
+                <strong>Millist muusika stiili sa kõige rohkem kuulad? *</strong>
+                <span class="error" id="stiilError"></span>
+                <br>
+
+                <input type="radio" name="stiil" id="rock" value="Rock" onchange="valiStiil()">
+                <label for="rock">Rock</label>
+                <br>
+
+                <input type="radio" name="stiil" id="hardrock" value="Hard Rock" onchange="valiStiil()">
+                <label for="hardrock">Hard Rock</label>
+                <br>
+
+                <input type="radio" name="stiil" id="metall" value="Metall" onchange="valiStiil()">
+                <label for="metall">Metall</label>
+                <br>
+
+                <input type="radio" name="stiil" id="heavymetall" value="Heavy Metall" onchange="valiStiil()">
+                <label for="heavymetall">Heavy Metall</label>
+                <br>
+
+                <input type="radio" name="stiil" id="newmetall" value="New Metall" onchange="valiStiil()">
+                <label for="newmetall">New Metall</label>
+                <br>
+
+                <input type="radio" name="stiil" id="newrock" value="New Rock" onchange="valiStiil()">
+                <label for="newrock">New Rock</label>
+                <br>
+
+                <input type="radio" name="stiil" id="rockandroll" value="Rock and Roll" onchange="valiStiil()">
+                <label for="rockandroll">Rock and Roll</label>
+                <br>
+            </td>
+            <td>
+                <div id="vastus6"></div>
+            </td>
+        </tr>
+
+        <tr>
+            <td style="text-align:center;" colspan="2">
+                <button type="button" onclick="saadaVastused()">Saada vastused</button>
+                <input type="reset" onclick="puhasta()" value="Puhasta">
+            </td>
+        </tr>
+
+        <tr>
+            <td colspan="2">
+                <div id="kokkuvote"></div>
+            </td>
+        </tr>
+    </table>
+</form>
+
+=======
+C:\Users\opilane\Desktop\webphp\content\matemfunkts.php
+=======
+[TEXT]
+<?php
+
+
+=======
+C:\Users\opilane\Desktop\webphp\content\Mobillimail\blankett.html
+=======
+[TEXT]
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta name="viewport" content="width=device-width; initial-scale=1.0;
+maximum-scale=1.0;">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>Tunniplaan</title>
+  <link href="../../style/kujundus.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+<div id="header">
+  <div class="nav">
+    <ul>
+      <li><a href="esmaspaev.php">E</a></li>
+      <li><a href="teisipaev.php">T</a></li>
+      <li><a href="kolmapaev.php">K</a></li>
+      <li><a href="neljapaev.php">N</a></li>
+      <li><a href="reede.php">R</a></li>
+    </ul>
+  </div>
+</div>
+<div class="clear"></div>
+<h2>Esmaspäev</h2>
+<p>
+<ol><li>Matemaatika</li>
+  <li>Ajalugu</li>
+  <li>Laulmine</li>
+</ol>
+</p>
+<div class="nav2">
+  <p>Design by <a
+          href="http://www.mobifreaks.com">Mobifreaks.com</a></p>
+</div>
+</body>
+</html>
+
+=======
+C:\Users\opilane\Desktop\webphp\content\Mobillimail\esmaspaev.php
+=======
+[TEXT]
+<?php require("p2is.php"); ?>
+<h2>Esmaspäev</h2>
+<p>
+<ol>
+    <li>Matemaatika</li>
+    <li>Ajalugu</li>
+    <li>Laulmine</li>
+</ol>
+</p>
+<?php require("jalus.php"); ?>
+
+
+=======
+C:\Users\opilane\Desktop\webphp\content\Mobillimail\jalus.php
+=======
+[TEXT]
+<div class="nav2">
+    <p>Design by <a
+            href="http://www.mobifreaks.com">Mobifreaks.com</a></p>
+</div>
+</body>
+</html>
+
+=======
+C:\Users\opilane\Desktop\webphp\content\Mobillimail\kolmapaev.php
+=======
+[TEXT]
+<?php require("p2is.php"); ?>
+    <h2>Kolmapäev</h2>
+    <p>
+    <ol>
+        <li>Matemaatika</li>
+        <li>Emakeel</li>
+        <li>Kehaline kasvatus</li>
+    </ol>
+    </p>
+<?php require("jalus.php"); ?>
+
+=======
+C:\Users\opilane\Desktop\webphp\content\Mobillimail\neljapaev.php
+=======
+[TEXT]
+<?php require("p2is.php"); ?>
+    <h2>Neljapäev</h2>
+    <p>
+    <ol>
+        <li>Emakeel</li>
+        <li>Ajalugu</li>
+        <li>Matemaatika</li>
+    </ol>
+    </p>
+<?php require("jalus.php"); ?>
+
+=======
+C:\Users\opilane\Desktop\webphp\content\Mobillimail\p2is.php
+=======
+[TEXT]
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta name="viewport" content="width=device-width; initial-scale=1.0;
+maximum-scale=1.0;">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Tunniplaan</title>
+    <link href="../../style/kujundus.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+<div id="header">
+    <div class="nav">
+        <ul>
+            <li><a href="esmaspaev.php">E</a></li>
+            <li><a href="teisipaev.php">T</a></li>
+            <li><a href="kolmapaev.php">K</a></li>
+            <li><a href="neljapaev.php">N</a></li>
+            <li><a href="reede.php">R</a></li>
+        </ul>
+    </div>
+</div>
+<div class="clear"></div>
+
+=======
+C:\Users\opilane\Desktop\webphp\content\Mobillimail\reede.php
+=======
+[TEXT]
+<?php require("p2is.php"); ?>
+    <h2>Reede</h2>
+    <p>
+    <ol>
+        <li>Laulmine</li>
+        <li>Ajalugu</li>
+    </ol>
+    </p>
+<?php require("jalus.php"); ?>
+
+=======
+C:\Users\opilane\Desktop\webphp\content\Mobillimail\sisselugemine.php
+=======
+[TEXT]
+<!doctype html>
+<html>
+<head>
+    <title>Tunniplaani leht</title>
+</head>
+<body>
+<h1>Esmaspäev</h1>
+<ol>
+    <li>Matemaatika</li>
+    <li>Ajalugu</li>
+    <li>Laulmine</li>
+</ol>
+<?php
+require("teade.txt");
+?>
+</body
+</html>
+
+=======
+C:\Users\opilane\Desktop\webphp\content\Mobillimail\teade.txt
+=======
+[TEXT]
+Spordipäeva tõttu sel esmaspäeval tavalisi tunde ei toimu.
+Kõik õpilased kohtuvad hommikul kell 9 palliplatsil
+
+=======
+C:\Users\opilane\Desktop\webphp\content\Mobillimail\teisipaev.php
+=======
+[TEXT]
+<?php require("p2is.php"); ?>
+    <h2>Teisipäev</h2>
+    <p>
+    <ol>
+        <li>Emakeel</li>
+        <li>Matemaatika</li>
+        <li>Tööõpetus</li>
+    </ol>
+    </p>
+<?php require("jalus.php"); ?>
+
+=======
+C:\Users\opilane\Desktop\webphp\content\tekstFunktsioonid.php
+=======
+[TEXT]
+<div id="flex-container-ajaf">
+
+    <?php
+    function clearVarsExcept($url, $varname){
+        $url = basename($url);
+        if (str_starts_with($url, "?")){
+            return "?$varname=" . $_REQUEST[$varname];
+        }
+        return strtok($url, "?") . "?$varname=" . $_REQUEST[$varname];
+    }
+
+    // --- БЛОК 1: Tekst funktioonid ---
+    echo "<div class='flex-row'>";
+    echo "<h2>Tekst funktioonid</h2>";
+    $tekst="Php on skriptikeel serveripoolne";
+    echo "<strong>$tekst</strong><br>";
+    echo "Teksti pikkus - .strlen(muutuja)= ".strlen($tekst)." Tähtemärgi<br>";
+    echo "Esimesed 6 tähte - .substr(muutuja, 0, 6) = ".substr($tekst, 0, 6)."<br>";
+    echo "Alates 6 tähte - .substr(muutuja, 6) = ".substr($tekst, 6)."<br>";
+    echo "Sõnade arv lauses - .str_word_count(muutuja) = ".str_word_count($tekst)." Sõna lauses<br>";
+    echo "Teeb kõik tähed suured - .strtoupper(muutuja) = ".strtoupper($tekst)."<br>";
+    echo "Teeb kõik tähed väiksed - .strtolower(muutuja) = ".strtolower($tekst)."<br>";
+    echo "Teeb kõik esimese lause tähed suured - .ucwords(muutuja) = ".ucwords($tekst)."<br>";
+    echo "</div>";
+
+    // --- БЛОК 2: Trim & tekst2 ---
+    $tekst2="       Php on skriptikeel serveri poolne";
+    echo "<div class='flex-row'>";
+    echo "<strong>$tekst2</strong><br>";
+    echo "Eemaldab tekstist tühikuid paremal ja vasakul - trim() = ".trim($tekst2)."<br>";
+    echo "Eemaldab tekstist tühikuid vasakul - ltrim() = ".ltrim($tekst2)."<br>";
+    echo "Eemaldab tekstist tühikuid paremal - rtrim() = ".rtrim($tekst2)."<br>";
+    echo "</div>";
+
+    // --- БЛОК 3: Tekst kui massiiv ---
+    echo "<div class='flex-row'>";
+    echo "<h3>Tekst kui massiiv</h3>";
+    echo "1.täht massiivist - ".$tekst[0]."<br>";
+    echo "5.täht massiivist - ".$tekst[4]."<br>";
+    $syna=str_word_count($tekst,1);
+    echo "massivist 2 sõna - ".$syna[1]."<br>";
+    echo "</div>";
+
+    // --- БЛОК 4: Teksti asendamine ---
+    echo "<div class='flex-row'>";
+    echo "<h2>Teksti asendamine -replace</h2>";
+    $asendus = "Javascript";
+    echo substr_replace($tekst, $asendus, 0, 3)."<br>";
+    echo substr_replace($tekst, "Kliendipoolne ", 19)."<br>";
+    $otsi=array('PHP', 'serveripoolne');
+    $asendav=array('Javascript', 'Kliendipoolne');
+    echo str_replace($otsi, $asendav, $tekst)."<br>";
+    echo "</div>";
+
+    // --- БЛОК 5: Mõistatus ---
+    $linn = "Tallinn";
+    echo "<div class='flex-row'>";
+    echo "<h2>Mõistatus. Arva ära Eesti linnanimi</h2>";
+    echo "<h3>$linn</h3>";
+    echo "Teksti pikkus = ".strlen($linn)." Tähtemärgi<br>";
+    echo "Kõik tähed suured = ".strtoupper($linn)."<br>";
+    echo "1.täht = ".$linn[0]."<br>";
+    echo "Alates 3 tähte = ".substr($linn, 3)."<br>";
+    echo "Lisame 'on hea linn' lõppule = ".substr_replace($linn, " on hea linn", 8)."<br>";
+    ?>
+
+    <form name="testkontroll" action="<?=clearVarsExcept($_SERVER['REQUEST_URI'], "link")?>" method="post">
+        <label for="linn">Sisesta linnanimi:</label>
+        <input type="text" id="linn" name="linn">
+        <input type="submit" value="Kontrolli">
+    </form>
+
+    <?php
+    if (isset($_REQUEST["linn"])){
+        if ($_REQUEST["linn"]=="$linn"){
+            echo $_REQUEST["linn"]. " On õige";
+        }
+        else{
+            echo $_REQUEST["linn"]. " On vale";
+        }
+    }
+    echo "</div>"; // конец блока mõistatus
+    ?>
+</div>
+
+
+=======
+C:\Users\opilane\Desktop\webphp\dump\project_dump.txt
+=======
+[TEXT]
+
+
+=======
+C:\Users\opilane\Desktop\webphp\dump.php
+=======
+[TEXT]
+<?php
+
+/**
+ * Полный дамп всех файлов проекта (включая бинарные)
+ * в один текстовый файл project_dump.txt.
+ *
+ * Текстовые файлы записываются как есть.
+ * Бинарные — в Base64, помечены специальным маркером.
+ */
+
+$root = __DIR__;
+$outputFile = $root . "/project_dump.txt";
+
+if (file_exists($outputFile)) {
+    unlink($outputFile);
+}
+
+$files = new RecursiveIteratorIterator(
+    new RecursiveDirectoryIterator($root, RecursiveDirectoryIterator::SKIP_DOTS)
+);
+
+foreach ($files as $file) {
+    if ($file->isDir()) {
+        continue;
+    }
+
+    $path = $file->getPathname();
+    $relativePath = str_replace($root . "/", "", $path);
+
+    // Прочитаем файл
+    $raw = file_get_contents($path);
+
+    // Проверим бинарный или текстовый
+    $isBinary = false;
+
+    // если есть NUL-байты — файл бинарный
+    if (strpos($raw, "\0") !== false) {
+        $isBinary = true;
+    }
+
+    // Заголовок
+    $block  = "\n=======\n{$relativePath}\n=======\n";
+
+    // Контент
+    if ($isBinary) {
+        $block .= "[BINARY_BASE64]\n";
+        $block .= base64_encode($raw) . "\n";
+    } else {
+        $block .= "[TEXT]\n";
+        $block .= $raw . "\n";
+    }
+
+    // Записываем
+    file_put_contents($outputFile, $block, FILE_APPEND);
+
+    echo "Дамп: {$relativePath}\n";
+}
+
+echo "\nГотово! См. файл: project_dump.txt\n";
+
+
+=======
+C:\Users\opilane\Desktop\webphp\footer.php
+=======
+[TEXT]
+<footer>
+<?php
+echo date("d.m.Y H:i:s");
+echo "</br>";
+echo "PHP leht tegi Milan";
+?>
+</footer>
+
+
+=======
+C:\Users\opilane\Desktop\webphp\header.php
+=======
+[TEXT]
+<header>
+    <h1>Milan PHP tööd | TARpv24</h1>
+</header>
+
+=======
+C:\Users\opilane\Desktop\webphp\image\images.jpg
+=======
+[BINARY_BASE64]
+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
+
+=======
+C:\Users\opilane\Desktop\webphp\index.php
+=======
+[TEXT]
+<!DOCTYPE html>
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <title>Milan PHP tööd</title>
+    <link rel="stylesheet" href="style/style.css">
+    <link rel="stylesheet" href="style/Kusitlus.css">
+    <script src="js/Kusitlus.js"></script>
+    <script src="js/kellscript.js"></script>
+</head>
+<body>
+<?php
+//päis
+include("header.php");
+?>
+<?php
+//navigeerimismenüü
+include("nav.php");
+?>
+<div class = "flex-container">
+    <div>
+        <?php
+        if(isset($_GET['link'])){
+            include("content/".$_GET['link']);
+        }
+        else{
+            include('content/avaleht.php');
+        }
+        ?>
+    </div>
+    <div>
+        <img src="image/images.jpg" alt="City">
+        <h2>Kuupäeva ja kellaaja ülesanne</h2>
+        <button id="tanaOn">TÄNA ON</button>
+        <div id="kellaaegvastus"></div>
+        <button id="synniPaev">Minu sünnipäevani</button>
+        <div id="sunnipaevani"></div>
+    </div>
+</div>
+<?php
+//jalus
+include("footer.php");
+?>
+
+</body>
+</html>
+
+=======
+C:\Users\opilane\Desktop\webphp\js\kellscript.js
+=======
+[TEXT]
+// Функция для отображения даты и времени
+function kuupaeva(){
+    const now = new Date();
+    document.getElementById("kellaaegvastus").innerHTML =
+        "Ainult kuupäev: " + now.toLocaleDateString('et-EE') + "<br>" +
+        "Ainult kellaaeg: " + now.toLocaleTimeString('et-EE') + "<br>" +
+        "Kuupäev ja kellaaeg: " + now.toLocaleString('et-EE');
+}
+
+// Функция для расчета дней до дня рождения
+function synnipaev(){
+    const now = new Date();
+    const birthday = new Date(2025, 5, 22); // 22 июня 2025
+    const difference = birthday.getTime() - now.getTime();
+    const days = Math.round(difference / (1000 * 60 * 60 * 24));
+
+    document.getElementById("sunnipaevani").innerHTML = days + " päeva";
+}
+
+// Назначаем обработчики после загрузки страницы
+window.onload = function() {
+    document.getElementById("tanaOn").onclick = kuupaeva;
+    document.getElementById("synniPaev").onclick = synnipaev;
+};
+
+=======
+C:\Users\opilane\Desktop\webphp\js\Kusitlus.js
+=======
+[TEXT]
+//vastus 1
+function ansambleid(){
+    let abba=document.getElementById("abba");
+    let Moderntalking=document.getElementById("Moderntalking");
+    let Queen=document.getElementById("Queen");
+    let nirvana=document.getElementById("nirvana");
+
+    let v1 = document.getElementById("vastus1");
+
+    let valik="";
+    if(abba.checked){
+        valik+=abba.value+", ";
+    }
+    if(Moderntalking.checked){
+        valik+=Moderntalking.value+", ";
+    }
+    if(Queen.checked){
+        valik+=Queen.value+", ";
+    }
+    if(nirvana.checked){
+        valik+=nirvana.value+", ";
+    }
+    v1.innerHTML="Sa valisid "+valik;
+}
+
+//Vastus 2
+function SinuArvade(){
+    let arvate=document.getElementById("arvate");
+    let v2=document.getElementById("vastus2");
+
+    v2.innerText="Sa kirjutasid: "+arvate.value;
+}
+//vastus 3
+function sliderLuugub(){
+    let v4 = document.getElementById("vastus3");
+    let slider = document.getElementById("slider");
+
+    v4.innerText = "Sa kuulad muusikat " + slider.value + " tundi päevas";
+}
+
+//vastus 4
+
+function valiRadio(){
+    let ei = document.getElementById("ei");
+    let jah = document.getElementById("jah");
+    let v4=document.getElementById("vastus4");
+
+    if (ei.checked) {
+        v4.innerHTML = ei.value;
+
+    } else if (jah.checked) {
+        v4.innerHTML = jah.value;
+
+    } else {
+        v4.innerHTML = "Palun vali oma vastus!";
+    }
+}
+
+//vastus 5
+function kirjutajaamu(){
+    let grupp=document.getElementById("grupp");
+    let v5=document.getElementById("vastus5");
+
+    v5.innerText="Sa kirjutasid: "+grupp.value;
+}
+//vastus 6
+//vastus 6 - ИСПРАВЛЕННАЯ ВЕРСИЯ
+function valiStiil(){
+    let rock=document.getElementById("rock");
+    let hardrock=document.getElementById("hardrock");
+    let metall=document.getElementById("metall");
+    let newrock=document.getElementById("newrock");
+    let newmetall=document.getElementById("newmetall");
+    let heavymetall=document.getElementById("heavymetall");
+    let rockandroll=document.getElementById("rockandroll");
+
+    let v6 = document.getElementById("vastus6");
+
+    let valik2="";
+
+    if(rock.checked){
+        valik2=rock.value;
+    }
+    else if(hardrock.checked){
+        valik2=hardrock.value;
+    }
+    else if(metall.checked){
+        valik2=metall.value;
+    }
+    else if(newrock.checked){
+        valik2=newrock.value;
+    }
+    else if(newmetall.checked){
+        valik2=newmetall.value;
+    }
+    else if (heavymetall.checked){
+        valik2=heavymetall.value;
+    }
+    else if(rockandroll.checked){
+        valik2=rockandroll.value;
+    }
+
+    v6.innerHTML="Sa kõige rohkem kuulad: "+valik2;
+}
+// Salvesta vastused
+function saadaVastused(){
+    let abba=document.getElementById("abba");
+    let Moderntalking=document.getElementById("Moderntalking");
+    let Queen=document.getElementById("Queen");
+    let nirvana=document.getElementById("nirvana");
+    let ansamblid="";
+
+    if(abba.checked){ ansamblid+=abba.value+", "; }
+    if(Moderntalking.checked){ ansamblid+=Moderntalking.value+", "; }
+    if(Queen.checked){ ansamblid+=Queen.value+", "; }
+    if(nirvana.checked){ ansamblid+=nirvana.value+", "; }
+
+    let arvamus=document.getElementById("arvate").value;
+
+    let tunnid=document.getElementById("slider").value;
+
+    let jah=document.getElementById("jah");
+    let ei=document.getElementById("ei");
+    let raadio="";
+    if(jah.checked){ raadio=jah.value; }
+    else if(ei.checked){ raadio=ei.value; }
+    else{ raadio="Pole valitud"; }
+
+    let jaamad=document.getElementById("grupp").value;
+
+    let rock=document.getElementById("rock");
+    let hardrock=document.getElementById("hardrock");
+    let metall=document.getElementById("metall");
+    let heavymetall=document.getElementById("heavymetall");
+    let newmetall=document.getElementById("newmetall");
+    let newrock=document.getElementById("newrock");
+    let rockandroll=document.getElementById("rockandroll");
+    let stiil="";
+
+    if(rock.checked){ stiil+=rock.value; }
+    if(hardrock.checked){ stiil+=hardrock.value; }
+    if(metall.checked){ stiil+=metall.value; }
+    if(heavymetall.checked){ stiil+=heavymetall.value; }
+    if(newmetall.checked){ stiil+=newmetall.value; }
+    if(newrock.checked){ stiil+=newrock.value; }
+    if(rockandroll.checked){ stiil+=rockandroll.value; }
+
+    let kokku=document.getElementById("kokkuvote");
+    kokku.innerText=
+        "Ansamblid: " + ansamblid + "\n" +
+        "Arvamus: " + arvamus + "\n" +
+        "Tunnid: " + tunnid + "\n" +
+        "Raadio: " + raadio + "\n" +
+        "Jaamad: " + jaamad + "\n" +
+        "Stiil: " + stiil;
+}
+//Puhastamine
+function puhasta() {
+    document.getElementById("abba").checked = false;
+    document.getElementById("Moderntalking").checked = false;
+    document.getElementById("Queen").checked = false;
+    document.getElementById("nirvana").checked = false;
+    document.getElementById("jah").checked = false;
+    document.getElementById("ei").checked = false;
+    document.getElementById("arvate").value = "";
+    document.getElementById("grupp").value = "";
+    document.getElementById("slider").value = 0;
+    document.getElementById("vastus1").innerText = "";
+    document.getElementById("vastus2").innerText = "";
+    document.getElementById("vastus3").innerText = "";
+    document.getElementById("vastus4").innerText = "";
+    document.getElementById("vastus5").innerText = "";
+    document.getElementById("vastus6").innerText = "";
+    document.getElementById("kokkuvote").innerText = "";
+}
+
+=======
+C:\Users\opilane\Desktop\webphp\nav.php
+=======
+[TEXT]
+<nav>
+    <ul>
+        <li><strong><a href="?link=Avaleht.php">Avaleht</a></strong></li>
+        <li><strong><a href="?link=gitKasutamine.php">Git käsud</a></strong></li>
+        <li><strong><a href="?link=Kusitlus.php">Küsitlus</a></strong></li>
+        <li><strong><a href="?link=ajaFunktsioonid.php">Aja funktsioonid</a></strong></li>
+<<<<<<< HEAD
+        <li><strong><a href="?link=matemfunkts.php">Matem funktsioonid</a></strong></li>
+=======
+        <li><strong><a href="?link=tekstFunktsioonid.php">Tekst funktsioonid</a></strong></li>
+>>>>>>> origin/tekstFunktsioonid
+        <li><strong><a href="https://milanpetrovski24.thkit.ee" target="_blank">Vana index ⇲</a></strong></li>
+    </ul>
+</nav>
+
+=======
+C:\Users\opilane\Desktop\webphp\style\kujundus.css
+=======
+[TEXT]
+@charset "utf-8";
+/* CSS Document */
+body{
+    background:#ffffff;
+    font-family:Arial, Helvetica, sans-serif;
+    margin:0;
+    padding:0;
+}
+#header{
+    margin:0 auto;
+}
+.nav{
+    font-size:14px;
+    background:#2d2d2d;
+    -moz-border-bottom-left-radius:6px;
+    -webkit-border-bottom-left-radius:6px;
+    border-bottom-left-radius:6px;
+    -moz-border-bottom-right-radius:6px;
+    -webkit-border-bottom-right-radius:6px;
+    border-bottom-right-radius:6px;
+    margin:0 5px;
+}
+.nav ul{
+    list-style-type:none;
+    margin:0;
+    padding:0;
+}
+.nav ul li{
+    display:inline;
+    margin:0;
+    padding:0;
+}
+.nav ul li:first-child{
+    margin:0 0 0 5px;
+}
+.nav ul li:last-child{
+    margin:0 5px 0 0;
+}
+.nav ul li a{
+    display:inline-block;
+    color:#f2f2f2;
+    padding:10px;text-decoration:none;
+}
+.nav ul li a:hover{
+    color:#565656;
+}
+h2{
+    font-size:16px;
+    font-weight:bold;
+    color:#9b9b9b;
+    border:#aaaaaa 1px dashed;
+    padding:5px;
+    margin:0 5px;
+}
+p{
+    text-align:left;
+    font-size:12px;
+    color:#2d2d2d;
+    margin:5px;
+    padding:0;
+    line-height:20px;
+}
+p a{
+    color:#3c9ddb;
+    text-decoration:none;
+}
+p a:hover{
+    color:#4d4444;
+}
+.nav2{
+    font-size:14px;
+    background:#2d2d2d;
+    -moz-border-top-left-radius:6px;
+    -webkit-border-top-left-radius:6px;
+    border-top-left-radius:6px;
+    -moz-border-top-right-radius:6px;
+    -webkit-border-top-right-radius:6px;
+    border-top-right-radius:6px;
+    margin:0 5px;
+}
+.nav2 p{
+    text-align:center;
+    color:#f2f2f2;
+    margin:0 5px;
+    padding:5px 0;
+}
+.nav2 p a{
+    display:inline-block;
+    color:#88aa00;
+    padding:5px;
+    text-decoration:none;
+}
+.nav2 p a:hover{
+    color:#565656;
+}
+.clear{
+    clear:both;
+}
+
+=======
+C:\Users\opilane\Desktop\webphp\style\Kusitlus.css
+=======
+[TEXT]
+table {
+    border-radius: 10px;
+    border-collapse: collapse;
+    max-width: 900px;
+    margin: 0 auto;
+    font-size: 14px;
+    width: 100%;
+    border-spacing: 0;
+}
+
+table tr:hover {
+    background-color: ghostwhite;
+}
+
+#Tabel1 td:nth-child(1) {
+    width: 70%;
+    vertical-align: top;
+    padding: 12px 15px;
+    font-weight: 500;
+}
+
+#Tabel1 td:nth-child(2) {
+    width: 30%;
+    vertical-align: top;
+    padding: 12px 15px;
+}
+
+#vastus1, #vastus2, #vastus3, #vastus4, #vastus5, #vastus6, #kokkuvote {
+    border: 1px solid #3C434F;
+    border-radius: 4px;
+    color: black;
+    padding: 10px;
+    min-height: 40px;
+    width: 100%;
+    box-sizing: border-box;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+input[type="text"], input[type="range"] {
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #3C434F;
+    color: #D1D5DB;
+    box-sizing: border-box;
+    font-size: 14px;
+}
+
+input[type="checkbox"], input[type="radio"] {
+    margin-right: 6px;
+    cursor: pointer;
+}
+
+button, input[type="reset"] {
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin: 0 5px;
+    font-size: 14px;
+}
+
+button:hover, input[type="reset"]:hover {
+    background-color: #1E40AF;
+}
+
+#Tabel1 tr:last-child td {
+    text-align: center;
+    padding: 15px;
+}
+
+#Tabel1 tr td {
+    border-bottom: 1px solid #2F343D;
+}
+
+.error {
+    color: red;
+    font-size: 12px;
+    margin-left: 10px;
+}
+
+#sliderValue {
+    color: #3C434F;
+    font-weight: bold;
+    margin-top: 5px;
+}
+
+=======
+C:\Users\opilane\Desktop\webphp\style\style.css
+=======
+[TEXT]
+header {
+    background-color: cornflowerblue;
+    text-align: center;
+    padding: 10px;
+}
+
+footer {
+    position: relative ;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: #f1f1f1;
+    padding: 8px;
+    text-align: center;
+    z-index: 1000;
+}
+nav ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    width: 130px;
+    background-color: #f1f1f1;
+    height: 100%; /* Full height */
+    position: fixed; /* Make it stick, even on scroll */
+    overflow: auto; /* Enable scrolling if the sidenav has too much content */
+}
+
+nav li a {
+    display: block;
+    color: black;
+    padding: 8px 16px;
+    text-decoration: none;
+}
+
+/* Change the link and background color on hover */
+nav li a:hover {
+    background-color: #555555;
+    color: white;
+}
+
+div.flex-container{
+    display: flex;
+    flex-direction: row;
+    margin-left: 10%;
+}
+
+div.flex-container > div{
+    margin: 10px;
+    flex: 1;
+    border: solid 1pt black;
+    border-radius: 6px;
+    padding: 10px;
+}
+
+@media screen and (max-width: 600px){
+    div.flex-container{
+        flex-direction: column;
+    }
+}
+
+img {
+    width: 200px;
+}
+
+.flex-container-ajaf {
+    display: flex;          /* Включаем flex-контейнер */
+    flex-direction: row;    /* Горизонтальное расположение элементов */
+    gap: 20px;              /* Расстояние между блоками */
+    flex-wrap: wrap;        /* Если блоков слишком много, они перенесутся на следующую строку */
+}
+
+.flex-row {
+    border: 1px solid #ccc; /* Для наглядности границы блоков */
+    padding: 10px;
+    background-color: #f9f9f9;
+    min-width: 200px;       /* Минимальная ширина блока */
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+}
+
