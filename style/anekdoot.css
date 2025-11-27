@@ -1,42 +1,346 @@
 /* Общий стиль для всех страниц */
-body {
+* {
+    box-sizing: border-box;
     margin: 0;
-    font-family: Arial, sans-serif;
-    background-color: #f5f5f5;
-    color: #333;
+    padding: 0;
 }
 
-header, footer {
-    background-color: #4CAF50;
+html {
+    font-size: 16px; /* Базовый размер шрифта для всех страниц */
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+    color: #333;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-size: 1rem; /* Явно указываем размер шрифта */
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Шапка */
+header {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
     color: white;
     text-align: center;
-    padding: 15px 0;
+    padding: 20px 15px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    width: 100%;
 }
 
+header h1 {
+    font-size: clamp(1.3rem, 4vw, 1.8rem); /* Адаптивный размер */
+    margin: 0;
+    font-weight: 600;
+}
+
+/* Навигация - ГОРИЗОНТАЛЬНАЯ */
 nav {
-    background-color: #333;
-    text-align: center;
+    background-color: #2c3e50;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+}
+
+nav::-webkit-scrollbar {
+    display: none;
+}
+
+nav ul {
+    display: flex;
+    list-style: none;
+    min-width: min-content;
+    white-space: nowrap;
+    padding: 0;
+    margin: 0;
+}
+
+nav li {
+    flex-shrink: 0;
 }
 
 nav a {
-    display: inline-block;
+    display: block;
     color: white;
     text-decoration: none;
-    padding: 10px 15px;
+    padding: 14px 20px;
+    font-size: clamp(0.8rem, 3vw, 0.95rem);
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
 }
 
-nav a:hover {
-    background-color: #575757;
+nav a:hover, nav a:focus {
+    background-color: #34495e;
+    border-bottom: 3px solid #4CAF50;
 }
 
+nav a.active {
+    background-color: #34495e;
+    border-bottom: 3px solid #4CAF50;
+}
+
+/* Основной контент */
 main {
-    padding: 20px;
+    padding: 20px 15px;
+    flex: 1;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    font-size: 1rem; /* Явно задаем размер шрифта */
 }
 
-/* Адаптивный дизайн */
-@media (max-width: 600px) {
-    nav a {
-        display: block;
-        text-align: center;
+/* Карточки контента */
+.content-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+    border: 1px solid #e9ecef;
+    width: 100%;
+}
+
+.content-card h2 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: clamp(1.2rem, 4vw, 1.5rem);
+    line-height: 1.3;
+}
+
+.content-card h3 {
+    color: #2c3e50;
+    margin-bottom: 12px;
+    font-size: clamp(1.1rem, 3vw, 1.3rem);
+    line-height: 1.3;
+}
+
+.content-card p {
+    margin-bottom: 15px;
+    color: #555;
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+.content-card ul, .content-card ol {
+    margin-bottom: 15px;
+    padding-left: 20px;
+}
+
+.content-card li {
+    margin-bottom: 8px;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+/* Подвал */
+footer {
+    background: linear-gradient(135deg, #2c3e50, #34495e);
+    color: white;
+    text-align: center;
+    padding: 20px 15px;
+    margin-top: auto;
+    width: 100%;
+}
+
+footer p {
+    margin: 5px 0;
+    font-size: clamp(0.8rem, 3vw, 0.95rem);
+}
+
+/* Специфические стили для текстового контента */
+.text-content {
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+.text-content h1 {
+    font-size: clamp(1.4rem, 5vw, 2rem);
+    margin-bottom: 20px;
+    color: #2c3e50;
+}
+
+.text-content h2 {
+    font-size: clamp(1.3rem, 4vw, 1.7rem);
+    margin: 25px 0 15px 0;
+    color: #2c3e50;
+}
+
+.text-content h3 {
+    font-size: clamp(1.1rem, 3vw, 1.4rem);
+    margin: 20px 0 12px 0;
+    color: #2c3e50;
+}
+
+.text-content p {
+    margin-bottom: 16px;
+    font-size: 1rem;
+}
+
+.text-content ul, .text-content ol {
+    margin-bottom: 16px;
+    padding-left: 24px;
+}
+
+.text-content li {
+    margin-bottom: 8px;
+    font-size: 1rem;
+}
+
+/* Адаптивный дизайн для мобильных устройств */
+@media (max-width: 768px) {
+    html {
+        font-size: 15px;
     }
+
+    body {
+        font-size: 0.95rem;
+    }
+
+    header {
+        padding: 15px 10px;
+    }
+
+    nav {
+        padding: 5px 0;
+    }
+
+    nav a {
+        padding: 12px 16px;
+    }
+
+    nav ul {
+        padding: 0 10px;
+    }
+
+    main {
+        padding: 15px 10px;
+        font-size: 0.95rem;
+    }
+
+    .content-card {
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 10px;
+    }
+
+    .text-content {
+        font-size: 0.95rem;
+    }
+}
+
+@media (max-width: 480px) {
+    html {
+        font-size: 14px;
+    }
+
+    body {
+        font-size: 0.9rem;
+    }
+
+    header h1 {
+        font-size: 1.3rem;
+    }
+
+    nav a {
+        padding: 10px 14px;
+    }
+
+    nav ul {
+        padding: 0 8px;
+    }
+
+    main {
+        padding: 12px 8px;
+        font-size: 0.9rem;
+    }
+
+    .content-card {
+        padding: 12px;
+        border-radius: 8px;
+    }
+
+    .content-card h2 {
+        font-size: 1.2rem;
+    }
+
+    .text-content {
+        font-size: 0.9rem;
+    }
+
+    .text-content h1 {
+        font-size: 1.4rem;
+    }
+
+    .text-content h2 {
+        font-size: 1.3rem;
+    }
+}
+
+/* Улучшения для очень маленьких экранов */
+@media (max-width: 360px) {
+    html {font-size: 13px;}
+    body {font-size: 0.85rem;}
+    nav a {padding: 8px 12px;}
+    header, footer {padding: 12px 8px;}
+    main {font-size: 0.85rem;}
+    .text-content {font-size: 0.85rem;}
+}
+
+/* Утилитарные классы для текста */
+.text-large {
+    font-size: 1.1rem !important;
+}
+
+.text-normal {
+    font-size: 1rem !important;
+}
+
+.text-small {
+    font-size: 0.9rem !important;
+}
+
+/* Красивые кнопки */
+.btn {
+    display: inline-block;
+    background: #4CAF50;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    text-align: center;
+}
+
+.btn:hover {
+    background: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* Гарантия, что все изображения адаптивны */
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Сброс стилей для всех текстовых элементов */
+h1, h2, h3, h4, h5, h6, p, span, div, a, li, td, th {
+    max-width: 100%;
+    word-wrap: break-word;
 }
